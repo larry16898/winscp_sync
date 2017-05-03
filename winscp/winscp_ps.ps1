@@ -118,7 +118,7 @@ param(
 
 }
 
-function CreateShortCut
+function CreateDesktopShortCut
 {
     param(
         [string]$shortcutName,
@@ -127,11 +127,15 @@ function CreateShortCut
     )
     try
     {
-    $WshShell = New-Object -ComObject WScript.Shell
-    $Shortcut = $WshShell.CreateShortcut("$home\desktop\$shortcutName")
-    $Shortcut.TargetPath = Join-Path $installPath $programName
-    $Shortcut.WorkingDirectory = $installPath
-    $Shortcut.Save()
+        $WshShell = New-Object -ComObject WScript.Shell
+        if(!(Test-Path "$home\desktop\$shortcutName"))
+        {
+            $Shortcut = $WshShell.CreateShortcut("$home\desktop\$shortcutName")
+            $Shortcut.TargetPath = Join-Path $installPath $programName
+            $Shortcut.WorkingDirectory = $installPath
+            $Shortcut.Save()
+            Write-Host -ForegroundColor Green "创建桌面快捷方式 $shortcutName 完成！"
+        }
     }
     catch [Exception]
     {
@@ -140,13 +144,38 @@ function CreateShortCut
     }
 }
 
+function RemoveOldDesktopShortCut
+{
+    param(
+        [string[]]$arrOldShortCuts
+    )
+    foreach ($shortcut in $arrOldShortCuts)
+    {
+        $shortcut_filepath = Join-Path "$home\desktop" $shortcut
+        if(Test-Path $shortcut_filepath)
+        {
+            Remove-Item $shortcut_filepath -Force
+            Write-Host -ForegroundColor Green "已清理旧的桌面快捷方式 $shortcut"
+        }
+    }
+}
 # write my own code here
+
+# this is a tool list which need to create shortcut on desktop.
 $tb_tools_list = @(@{programName='skype_helper.exe';installPath='C:\Program Files\tbtools\skype_helper';shortcutName='客服Skype登录助手.lnk'})
 
+$old_desktop_shortcuts = @('Skype登录器.lnk','客服Skype登录器.lnk','Skype登陆器.lnk','客服Skype登陆器.lnk')
+
+# start sync from remote to local
 SyncStuff -HostName '192.168.56.102' -UserName 'updateuser' -Password 'abc@123' -SshHostKeyFingerprint 'ssh-rsa 2048 d9:a9:62:39:33:41:30:06:13:cb:3b:86:e8:e3:da:33' `
                 -local_path 'C:\Program Files\tbtools' -remote_path '/updatesource/cs_office'
 
+# remove old shortcut names
+RemoveOldDesktopShortCut -arrOldShortCuts $old_desktop_shortcuts
+
+# Create shortcut on desktop
 foreach ($tool in $tb_tools_list)
 {
-    CreateShortCut -shortcutName $tool.shortcutName -programName $tool.programName -installPath $tool.installPath
+    CreateDesktopShortCut -shortcutName $tool.shortcutName -programName $tool.programName -installPath $tool.installPath
+    
 }
