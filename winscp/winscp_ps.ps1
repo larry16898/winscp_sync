@@ -1,8 +1,21 @@
-# Load WinSCP .NET assembly
-#Add-Type -Path "WinSCPnet.dll"
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory=$True)][string]$HostName='192.168.56.102',
+    [Parameter(Mandatory=$True)][string]$UserName='updateuser',
+    [Parameter(Mandatory=$True)][string]$Password='abc@123',
+    [Parameter(Mandatory=$True)][string]$SshHostKeyFingerprint='ssh-rsa 2048 d9:a9:62:39:33:41:30:06:13:cb:3b:86:e8:e3:da:33',
+    [Parameter(Mandatory=$True)][string]$ParentFolderName,
+    [Parameter(Mandatory=$True)][string]$SubFolderName,
+    [Parameter(Mandatory=$True)][string]$AddShortcutName,      #桌面快捷方式文件名，后缀名.lnk
+    [Parameter(Mandatory=$True)][string]$ProgramName,        #可执行程序文件名，后缀名.exe
+    [Parameter(Mandatory=$True)][string[]]$RemoveShortcuts    #需要删除的桌面快捷方式文件名， 字符串数组，命令行参数以逗号分隔
+)
+
+$LOCAL_ROOT_PATH = 'C:\Program Files\tbtools'
+$LOCAL_INSTALLED_PATH = Join-Path (Join-Path $LOCAL_ROOT_PATH $ParentFolderName) $SubFolderName
+$REMOTE_ROOT_PATH = '/updatesource'
  
 # Session.FileTransferred event handler
- 
 function FileTransferred
 {
     param($e)
@@ -54,21 +67,14 @@ function FileTransferred
 
 function SyncStuff
 {
-param(
-    [string]$HostName='192.168.56.102',
-    [string]$UserName='updateuser',
-    [string]$Password='abc@123',
-    [string]$SshHostKeyFingerprint='ssh-rsa 2048 d9:a9:62:39:33:41:30:06:13:cb:3b:86:e8:e3:da:33',
-    [string]$local_path='C:\Program Files\tbtools',
-    [string]$remote_path='/updatesource/cs_office'
-)
     try
     {
         # Load WinSCP .NET assembly
         Add-Type -Path "WinSCPnet.dll"
 
         # determine if the local destination folder is exists.
-        $local_path = 'C:\Program Files\tbtools'
+        $local_path = $LOCAL_INSTALLED_PATH
+        $remote_path = $REMOTE_ROOT_PATH + "/$ParentFolderName/$SubFolderName"
         if(!(Test-Path $local_path))
         {
             New-Item -Path $local_path -ItemType Directory -ErrorAction Stop >$null
@@ -120,21 +126,20 @@ param(
 
 function CreateDesktopShortCut
 {
-    param(
-        [string]$shortcutName,
-        [string]$programName,
-        [string]$installPath
-    )
+    $installPath = $LOCAL_INSTALLED_PATH
+#    Write-Host -ForegroundColor Red $installPath
     try
     {
         $WshShell = New-Object -ComObject WScript.Shell
-        if(!(Test-Path "$home\desktop\$shortcutName"))
+#        Write-Host -ForegroundColor Red "WshShell is done."
+        if(!(Test-Path "$home\desktop\$AddShortcutName"))
         {
-            $Shortcut = $WshShell.CreateShortcut("$home\desktop\$shortcutName")
-            $Shortcut.TargetPath = Join-Path $installPath $programName
+#            Write-Host -ForegroundColor Red "not exists $home\desktop\$shortcutName"
+            $Shortcut = $WshShell.CreateShortcut("$home\desktop\$AddShortcutName")
+            $Shortcut.TargetPath = Join-Path $installPath $ProgramName
             $Shortcut.WorkingDirectory = $installPath
             $Shortcut.Save()
-            Write-Host -ForegroundColor Green "创建桌面快捷方式 $shortcutName 完成！"
+            Write-Host -ForegroundColor Green "创建桌面快捷方式 $AddShortcutName 完成！"
         }
     }
     catch [Exception]
@@ -146,36 +151,28 @@ function CreateDesktopShortCut
 
 function RemoveOldDesktopShortCut
 {
-    param(
-        [string[]]$arrOldShortCuts
-    )
-    foreach ($shortcut in $arrOldShortCuts)
+    if($RemoveShortcuts.Length -gt 0) 
     {
-        $shortcut_filepath = Join-Path "$home\desktop" $shortcut
-        if(Test-Path $shortcut_filepath)
+        foreach ($shortcut in $RemoveShortcuts)
         {
-            Remove-Item $shortcut_filepath -Force
-            Write-Host -ForegroundColor Green "已清理旧的桌面快捷方式 $shortcut"
+            $shortcut_filepath = Join-Path "$home\desktop" $shortcut
+            if(Test-Path $shortcut_filepath)
+            {
+                Remove-Item $shortcut_filepath -Force
+                Write-Host -ForegroundColor Green "已清理旧的桌面快捷方式 $shortcut"
+            }
         }
     }
 }
 # write my own code here
-
-# this is a tool list which need to create shortcut on desktop.
-$tb_tools_list = @(@{programName='skype_helper.exe';installPath='C:\Program Files\tbtools\skype_helper';shortcutName='客服Skype登录助手.lnk'})
-
-$old_desktop_shortcuts = @('Skype登录器.lnk','客服Skype登录器.lnk','Skype登陆器.lnk','客服Skype登陆器.lnk')
-
-# start sync from remote to local
-SyncStuff -HostName '192.168.56.102' -UserName 'updateuser' -Password 'abc@123' -SshHostKeyFingerprint 'ssh-rsa 2048 d9:a9:62:39:33:41:30:06:13:cb:3b:86:e8:e3:da:33' `
-                -local_path 'C:\Program Files\tbtools' -remote_path '/updatesource/cs_office'
+# start to sync
+SyncStuff
 
 # remove old shortcut names
-RemoveOldDesktopShortCut -arrOldShortCuts $old_desktop_shortcuts
+RemoveOldDesktopShortCut
 
 # Create shortcut on desktop
-foreach ($tool in $tb_tools_list)
-{
-    CreateDesktopShortCut -shortcutName $tool.shortcutName -programName $tool.programName -installPath $tool.installPath
-    
-}
+CreateDesktopShortCut
+
+Write-Host "请按任意键关闭此窗口！"
+$void = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
