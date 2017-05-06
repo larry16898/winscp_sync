@@ -6,9 +6,10 @@ param(
     [Parameter(Mandatory=$True)][string]$SshHostKeyFingerprint='ssh-rsa 2048 d9:a9:62:39:33:41:30:06:13:cb:3b:86:e8:e3:da:33',
     [Parameter(Mandatory=$True)][string]$ParentFolderName,
     [Parameter(Mandatory=$True)][string]$SubFolderName,
-    [Parameter(Mandatory=$True)][string]$AddShortcutName,      #桌面快捷方式文件名，后缀名.lnk
+    [Parameter(Mandatory=$False)][string]$AddShortcutName,      #桌面快捷方式文件名，后缀名.lnk, 如果字段不为空，则创建快捷方式
     [Parameter(Mandatory=$True)][string]$ProgramName,        #可执行程序文件名，后缀名.exe
-    [Parameter(Mandatory=$True)][string[]]$RemoveShortcuts    #需要删除的桌面快捷方式文件名， 字符串数组，命令行参数以逗号分隔
+    [Parameter(Mandatory=$False)][string[]]$RemoveShortcuts,    #需要删除的桌面快捷方式文件名， 字符串数组，命令行参数以逗号分隔
+    [Parameter(Mandatory=$False)][string]$IsSyncFirst           #   1：  先同步再启动     其它值：   直接从本地启动
 )
 
 $LOCAL_ROOT_PATH = 'C:\Program Files\tbtools'
@@ -166,13 +167,21 @@ function RemoveOldDesktopShortCut
 }
 # write my own code here
 # start to sync
-SyncStuff
-
+if ($IsSyncFirst -eq "1")
+{
+    SyncStuff
+}
 # remove old shortcut names
 RemoveOldDesktopShortCut
 
 # Create shortcut on desktop
-CreateDesktopShortCut
+if ($AddShortcutName)
+{
+    CreateDesktopShortCut
+}
+
+$local_installed_program_file = Join-Path $LOCAL_INSTALLED_PATH $ProgramName
+Start-Process -FilePath "$local_installed_program_file" -WorkingDirectory "$LOCAL_INSTALLED_PATH"
 
 Write-Host "请按任意键关闭此窗口！"
 $void = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
