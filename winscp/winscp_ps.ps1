@@ -9,7 +9,8 @@ param(
     [Parameter(Mandatory=$False)][string]$AddShortcutName,      #桌面快捷方式文件名，后缀名.lnk, 如果字段不为空，则创建快捷方式
     [Parameter(Mandatory=$True)][string]$ProgramName,        #可执行程序文件名，后缀名.exe
     [Parameter(Mandatory=$False)][string[]]$RemoveShortcuts,    #需要删除的桌面快捷方式文件名， 字符串数组，命令行参数以逗号分隔
-    [Parameter(Mandatory=$False)][string]$IsSyncFirst           #   1：  先同步再启动     其它值：   直接从本地启动
+    [Parameter(Mandatory=$False)][string]$IsSyncFirst,           #   1：  先同步再启动     其它值：   直接从本地启动
+    [string]$FileMask=""                                          #  同步文件掩码，  例如 |Log\
 )
 
 $LOCAL_ROOT_PATH = 'C:\Program Files\tbtools'
@@ -66,6 +67,25 @@ function FileTransferred
     }
 }
 
+# Session.FileTransferProgress event handler
+function FileTransferProgress
+{
+    param($e)
+ 
+    # New line for every new file
+    if (($script:lastFileName -ne $Null) -and
+        ($script:lastFileName -ne $e.FileName))
+    {
+        Write-Host
+    }
+ 
+    # Print transfer progress
+    Write-Host -NoNewline ("`r{0} ({1:P0})" -f $e.FileName, $e.FileProgress)
+ 
+    # Remember a name of the last file reported
+    $script:lastFileName = $e.FileName
+}
+
 function SyncStuff
 {
     try
@@ -89,20 +109,26 @@ function SyncStuff
             Password = $Password
             SshHostKeyFingerprint = $SshHostKeyFingerprint
         }
+
+        # Setup TransferOptions
+        $transferOptions = New-Object WinSCP.TransferOptions
+        $transferOptions.FileMask = $FileMask
  
         $session = New-Object WinSCP.Session
 
         try
         {
             # Will continuously report progress of synchronization
-            $session.add_FileTransferred( { FileTransferred($_) } )
+            #$session.add_FileTransferred( { FileTransferred($_) } )
+
+            $session.add_FileTransferProgress( { FileTransferProgress($_) } )
  
             # Connect
             $session.Open($sessionOptions)
  
-            # Synchronize files
+            # Synchronize files using Mirror mode
             $synchronizationResult = $session.SynchronizeDirectories(
-                [WinSCP.SynchronizationMode]::Local, $local_path, $remote_path, $True)
+                [WinSCP.SynchronizationMode]::Local, $local_path, $remote_path, $True, $True,[WinSCP.SynchronizationCriteria]::Time, $transferOptions)
  
             # Throw on any error
             $synchronizationResult.Check()
