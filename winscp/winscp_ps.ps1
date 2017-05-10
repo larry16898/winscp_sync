@@ -6,7 +6,7 @@ param(
     [Parameter(Mandatory=$True)][string]$SshHostKeyFingerprint='ssh-rsa 2048 d9:a9:62:39:33:41:30:06:13:cb:3b:86:e8:e3:da:33',
     [Parameter(Mandatory=$True)][string]$ParentFolderName,
     [Parameter(Mandatory=$True)][string]$SubFolderName,
-    [Parameter(Mandatory=$False)][string]$AddShortcutName,      #桌面快捷方式文件名，后缀名.lnk, 如果字段不为空，则创建快捷方式
+    [Parameter(Mandatory=$False)][string]$AddShortcutName="",      #桌面快捷方式文件名，后缀名.lnk, 如果字段不为空，则创建快捷方式
     [Parameter(Mandatory=$True)][string]$ProgramName,        #可执行程序文件名，后缀名.exe
     [Parameter(Mandatory=$False)][string[]]$RemoveShortcuts,    #需要删除的桌面快捷方式文件名， 字符串数组，命令行参数以逗号分隔
     [Parameter(Mandatory=$False)][string]$IsSyncFirst,           #   1：  先同步再启动     其它值：   直接从本地启动
@@ -15,7 +15,7 @@ param(
 
 $LOCAL_ROOT_PATH = 'C:\Program Files\tbtools'
 $LOCAL_INSTALLED_PATH = Join-Path (Join-Path $LOCAL_ROOT_PATH $ParentFolderName) $SubFolderName
-$REMOTE_ROOT_PATH = '/updatesource'
+$REMOTE_ROOT_PATH = '/updatesource/client_exe'
  
 # Session.FileTransferred event handler
 function FileTransferred
@@ -125,6 +125,8 @@ function SyncStuff
  
             # Connect
             $session.Open($sessionOptions)
+
+            Write-Host -ForegroundColor Green "亲，俺正在准备中，第一次同步可能会比较慢，请耐心等待..."
  
             # Synchronize files using Mirror mode
             $synchronizationResult = $session.SynchronizeDirectories(
@@ -207,6 +209,12 @@ if ($AddShortcutName)
 }
 
 $local_installed_program_file = Join-Path $LOCAL_INSTALLED_PATH $ProgramName
+
+# stop process if exists.
+$ProgramName = Split-Path $ProgramName -Leaf     # e.g. if programeName is "Debug\test.exe", this will return only "test.exe"
+Get-Process -Name "$ProgramName" 2>&1 >$null | Stop-Process -Force 2>&1 >$null
+
+
 Start-Process -FilePath "$local_installed_program_file" -WorkingDirectory "$LOCAL_INSTALLED_PATH"
 
 Write-Host "请按任意键关闭此窗口！"
