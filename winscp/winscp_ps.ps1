@@ -148,6 +148,8 @@ function SyncStuff
     catch [Exception]
     {
         Write-Host ("Error: {0}" -f $_.Exception.Message)
+        Write-Host "请按任意键关闭此窗口！"
+        $void = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         exit 1
     }
 
@@ -217,5 +219,4 @@ Get-Process -Name "$ProgramName" 2>&1 >$null | Stop-Process -Force 2>&1 >$null
 
 Start-Process -FilePath "$local_installed_program_file" -WorkingDirectory "$LOCAL_INSTALLED_PATH"
 
-Write-Host "请按任意键关闭此窗口！"
-$void = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+
